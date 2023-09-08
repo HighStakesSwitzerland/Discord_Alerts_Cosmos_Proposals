@@ -32,7 +32,7 @@ class QueryProposals:
                 except:
                     print(f"Can't get node info at {base_url}/cosmos/base/tendermint/v1beta1/node_info}.\nPlease check configuration")
                     exit(1)
-                    
+
                 if sdk_version >= 47:
                     proposals_url = '/cosmos/gov/v1/proposals?proposal_status=2'
                 else:
@@ -62,7 +62,7 @@ class QueryProposals:
                                 title = 'Unkown'
                             try:
                                 if proposal_type == 'MsgSoftwareUpgrade':
-                                    description = content['plan']['height'] , content['plan']['info']
+                                    description = content['plan']['height'] +', '+ content['plan']['info']
                                 else:
                                     try:
                                         description = content['summary'].replace("'", "\\'")
