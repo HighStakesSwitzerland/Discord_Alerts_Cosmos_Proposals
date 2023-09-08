@@ -91,7 +91,7 @@ class QueryProposals:
             sleep(3600) #or whatever delay
 
 parser = ArgumentParser()
-parser.add_argument('-n', action='append', nargs='+', help='Usage: python3 standalone_governance_alerts.py -n VALIDATOR1 SERVER_IP1 API_PORT1 -n VALIDATOR2 SERVER_IP2 API_PORT2')
+parser.add_argument('-n', action='append', nargs='+', help='Usage: python3 proposals_discord_bot.py -n VALIDATOR1 SERVER_IP1 API_PORT1 -n VALIDATOR2 SERVER_IP2 API_PORT2')
 #No commas, no quotes, e.g. : python3 proposal_discord_bot.py -n INJECTIVE 127.23.25.25 1317 -n BAND_PROTOCOL 235.26.35.65 1318
 args = parser.parse_args()
 
