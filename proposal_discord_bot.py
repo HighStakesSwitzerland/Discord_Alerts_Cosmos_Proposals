@@ -26,9 +26,13 @@ class QueryProposals:
                 base_url = f"http://{node[1]}:{node[2]}"
 
                 #some API endpoints can change depending on the sdk version
-                sdk_version = int(get(f"{base_url}/cosmos/base/tendermint/v1beta1/node_info").json()['application_version']['cosmos_sdk_version'].split('.')[1])
+                try:
+                    sdk_version = int(get(f"{base_url}/cosmos/base/tendermint/v1beta1/node_info").json()['application_version']['cosmos_sdk_version'].split('.')[1])
                 #e.g. get should return something like "v0.47.2", so sdk_version = 47. Not a very robust way to do that but endpoints might change before reaching v1.x so this will likely need to be updated.
-
+                except:
+                    print(f"Can't get node info at {base_url}/cosmos/base/tendermint/v1beta1/node_info}.\nPlease check configuration")
+                    exit(1)
+                    
                 if sdk_version >= 47:
                     proposals_url = '/cosmos/gov/v1/proposals?proposal_status=2'
                 else:
@@ -38,10 +42,12 @@ class QueryProposals:
                     proposals = get(base_url + proposals_url, timeout=10).json()['proposals'] #ignore the pagination. Shouldn't be many, unless spam (e.g. Terra Classic)
 
                     for i in proposals: #that's clumsy but hey.
-                        if datetime.fromisoformat(i['submit_time']) > self.now:
+                        if datetime.fromisoformat(i['submit_time']) < self.now:
                             proposal_id = i['id'] if sdk_version >= 47 else i['proposal_id']
-                            
                             content = i['messages'][0] if sdk_version >= 47 else i['content']
+
+                            if "content" in content.keys(): #so apparently sometimes it's nested again (Injective)
+                                content = content['content']
 
                             try:
                                 proposal_type = content['@type'].split('.')[-1]
@@ -51,21 +57,24 @@ class QueryProposals:
                                 if proposal_type == 'MsgSoftwareUpgrade':
                                     title = content['plan']['name']
                                 else:
-                                    title =content['title'].replace("'", "\\'")
+                                    title = content['title'].replace("'", "\\'")
                             except:
                                 title = 'Unkown'
                             try:
                                 if proposal_type == 'MsgSoftwareUpgrade':
                                     description = content['plan']['height'] , content['plan']['info']
                                 else:
-                                    description = content['summary'].replace("'", "\\'") if sdk_version >= 47 else content['description'].replace("'", "\\'")
+                                    try:
+                                        description = content['summary'].replace("'", "\\'")
+                                    except Exception as e:
+                                        description = content['description'].replace("'", "\\'")
                             except:
-                                description = 'Unkown'
+                                description = content
 
                             proposal = {'validator': node[0], 'number': proposal_id,
                                         'proposal_type': proposal_type,
                                         'title': title,
-                                        'description': description, #discord messages can't exceed 4096 characters, so truncate at 4000 to leave room for the other fields
+                                        'description': description, 
                                         'voting_end_time':datetime.strftime(datetime.fromisoformat(i['voting_end_time'].split('.')[0]), '%Y-%m-%d %H:%M:%S')
                                         }
 
