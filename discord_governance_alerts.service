@@ -1,0 +1,10 @@
+[Unit]
+Description=Start the Discord alerts service for new proposals.
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /PATH/TO/proposal_discord_bot.py -n VALIDATOR IP PORT -n VALIDATOR2 IP2 PORT2 -n etc.
+
+[Install]
+WantedBy=multi-user.target
