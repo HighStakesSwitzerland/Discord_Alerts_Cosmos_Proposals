@@ -6,7 +6,7 @@ from datetime import datetime
 from argparse import ArgumentParser
 
 class QueryProposals:
-    """Query the node api and look for new governance proposals in voting period."""
+    """Query the node api and look for new governance proposals in voting period. Only the proposals submitted after the script started running are picked  up."""
     def __init__(self, nodes):
         super().__init__()
 
@@ -30,7 +30,7 @@ class QueryProposals:
                     sdk_version = int(get(f"{base_url}/cosmos/base/tendermint/v1beta1/node_info").json()['application_version']['cosmos_sdk_version'].split('.')[1])
                 #e.g. get should return something like "v0.47.2", so sdk_version = 47. Not a very robust way to do that but endpoints might change before reaching v1.x so this will likely need to be updated.
                 except:
-                    print(f"Can't get node info at {base_url}/cosmos/base/tendermint/v1beta1/node_info}.\nPlease check configuration")
+                    print(f"Can't get node info at {base_url}/cosmos/base/tendermint/v1beta1/node_info.\nPlease check configuration")
                     exit(1)
 
                 if sdk_version >= 47:
@@ -42,34 +42,22 @@ class QueryProposals:
                     proposals = get(base_url + proposals_url, timeout=10).json()['proposals'] #ignore the pagination. Shouldn't be many, unless spam (e.g. Terra Classic)
 
                     for i in proposals: #that's clumsy but hey.
-                        if datetime.fromisoformat(i['submit_time']) < self.now:
+                        if datetime.fromisoformat(i['submit_time']) > self.now:
+
                             proposal_id = i['id'] if sdk_version >= 47 else i['proposal_id']
-                            content = i['messages'][0] if sdk_version >= 47 else i['content']
 
-                            if "content" in content.keys(): #so apparently sometimes it's nested again (Injective)
-                                content = content['content']
+                            # content = i['messages'][0] if sdk_version >= 47 else i['content']
 
-                            try:
-                                proposal_type = content['@type'].split('.')[-1]
-                            except:
-                                proposal_type = 'Generic'
-                            try:
-                                if proposal_type == 'MsgSoftwareUpgrade':
-                                    title = content['plan']['name']
-                                else:
-                                    title = content['title'].replace("'", "\\'")
-                            except:
-                                title = 'Unkown'
-                            try:
-                                if proposal_type == 'MsgSoftwareUpgrade':
-                                    description = content['plan']['height'] +', '+ content['plan']['info']
-                                else:
-                                    try:
-                                        description = content['summary'].replace("'", "\\'")
-                                    except Exception as e:
-                                        description = content['description'].replace("'", "\\'")
-                            except:
-                                description = content
+                            proposal_type = self.find_value(i, '@type').split('.')[-1] #content['@type'].split('.')[-1]
+
+                            if proposal_type == 'MsgSoftwareUpgrade':
+                                title = self.find_value(i, 'name')
+                                description = self.find_value(i, 'height')
+                            else:
+                                title = self.find_value(i, 'title')
+                                description = self.find_value(i, 'description')
+                                if description is None:
+                                    description = self.find_value(i, 'summary')
 
                             proposal = {'validator': node[0], 'number': proposal_id,
                                         'proposal_type': proposal_type,
@@ -79,7 +67,6 @@ class QueryProposals:
                                         }
 
                             pending_proposals.append(proposal)
-
                 except Exception as e:
                     print(e)
 
@@ -98,6 +85,23 @@ class QueryProposals:
                 except Exception as e:
                     print(e)
             sleep(3600) #or whatever delay
+
+    def find_value(self, dictionary, target_key):
+        # Check if the target_key exists in the current dictionary
+        if target_key in dictionary:
+            return dictionary[target_key]
+        # If not found, recursively search in nested dictionaries
+        for key, value in dictionary.items():
+            if isinstance(value, dict):
+                result = self.find_value(value, target_key)
+                if result is not None:
+                    return result
+            elif isinstance(value, list):
+                for item in value:
+                    if isinstance(item, dict):
+                        result = self.find_value(item, target_key)
+                        if result is not None:
+                            return result
 
 parser = ArgumentParser()
 parser.add_argument('-n', action='append', nargs='+', help='Usage: python3 proposals_discord_bot.py -n VALIDATOR1 SERVER_IP1 API_PORT1 -n VALIDATOR2 SERVER_IP2 API_PORT2')
