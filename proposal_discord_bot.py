@@ -1,9 +1,12 @@
+from os import path
 from time import sleep
 from discord import SyncWebhook, Embed
 import pytz
 from requests import get
 from datetime import datetime
 from argparse import ArgumentParser
+
+local_directory = path.dirname(path.abspath(__file__))
 
 class QueryProposals:
     """Query the node api and look for new governance proposals in voting period. Only the proposals submitted after the script started running are picked  up."""
@@ -13,10 +16,15 @@ class QueryProposals:
         self.nodes = nodes.n #see argument format at the bottom
 
         self.discord_url = 'https://discord.com/api/webhooks/YOUR_DISCORD_CHANNEL_WEBHOOK_HERE' #depending on the version of the discord package, brackets may be required
-        self.now = datetime.now(tz=pytz.UTC)  # get the current timestamp, to alert only on new proposals.
+
+        try: #the timestamp is written in a file so that it persists across restarts
+            with open(path.join(local_directory, "timestamp"), "r") as f:
+                self.now = datetime.strptime(f.read(), '%Y-%m-%d %H:%M:%S').replace(tzinfo=pytz.UTC)
+
+        except: #file doesn't exist or data has a wrong format, whatever.
+            self.now = datetime.now(tz=pytz.UTC)  # get the current timestamp, to alert only on new proposals.
 
     def run(self):
-
         while True:
 
             pending_proposals = []
@@ -78,6 +86,8 @@ class QueryProposals:
                     print(e)
 
             self.now = datetime.now(tz=pytz.UTC) #reset the timestamp so that at next run, the previous proposals aren't picked up again.
+            with open(path.join(local_directory, "timestamp"), "w") as f: #write that in the file
+                f.write(str(datetime.now(tz=pytz.UTC)).split('.')[0])
 
             for proposal in pending_proposals:
                 # for i in proposal:
@@ -120,5 +130,4 @@ args = parser.parse_args()
 if __name__ == '__main__':
     # Note: could be a thread
     QueryProposals(args).run()
-
 
